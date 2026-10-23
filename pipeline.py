@@ -1,13 +1,9 @@
 import asyncio, json, os, re, subprocess, sys
 import edge_tts, feedparser, requests
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 LANG = os.getenv("VIDEO_LANGUAGE", "English")
 VOICE = os.getenv("VOICE", "en-IN-NeerjaNeural")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")   # check the current free model name
-PRIVACY = os.getenv("PRIVACY", "private")
 FONT = os.getenv("FONT_FILE", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 MAX_TRIES = 5
 
@@ -94,32 +90,23 @@ def build_video(d):
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "video.mp4"], check=True)
 
 
-def upload(d, apply_link):
-    creds = Credentials(None, refresh_token=os.environ["YT_REFRESH_TOKEN"],
-                        token_uri="https://oauth2.googleapis.com/token",
-                        client_id=os.environ["YT_CLIENT_ID"],
-                        client_secret=os.environ["YT_CLIENT_SECRET"],
-                        scopes=["https://www.googleapis.com/auth/youtube.upload"])
-    yt = build("youtube", "v3", credentials=creds)
+def send_telegram(d, apply_link):
+    tok, chat = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
+    title = (d.get("youtube_title") or d.get("headline") or "Job Alert")[:85] + " #Shorts"
     desc = (f"{d.get('youtube_description') or ''}\n\nOfficial notification: {apply_link}\n\n"
             "Disclaimer: Always verify details on the official website before applying. "
             "AI-assisted video.\n#Shorts #JobAlert #Jobs")
-    body = {"snippet": {"title": (d.get("youtube_title") or d.get("headline") or "Job Alert")[:85] + " #Shorts",
-                        "description": desc, "tags": d.get("tags") or [], "categoryId": "27"},
-            "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False}}
-    req = yt.videos().insert(part="snippet,status", body=body,
-                             media_body=MediaFileUpload("video.mp4", chunksize=-1, resumable=True))
-    resp = None
-    while resp is None:
-        _, resp = req.next_chunk()
-    return resp["id"]
-
-
-def notify(text):
-    tok, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
-    if tok and chat:
-        requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
-                      json={"chat_id": chat, "text": text}, timeout=30)
+    tags = ", ".join(d.get("tags") or [])
+    base = f"https://api.telegram.org/bot{tok}"
+    with open("video.mp4", "rb") as f:
+        r = requests.post(f"{base}/sendVideo",
+                          data={"chat_id": chat, "caption": title[:1000], "supports_streaming": "true",
+                                "width": 1080, "height": 1920},
+                          files={"video": f}, timeout=300)
+    r.raise_for_status()
+    text = f"TITLE:\n{title}\n\nDESCRIPTION:\n{desc}\n\nTAGS:\n{tags}"
+    requests.post(f"{base}/sendMessage", json={"chat_id": chat, "text": text[:4000]},
+                  timeout=60).raise_for_status()
 
 
 def main():
@@ -136,10 +123,8 @@ def main():
         if not d.get("last_date") or not d.get("script"):
             print("Skipping (missing key facts):", item["title"]); continue
         build_video(d)
-        vid = upload(d, d.get("apply_link") or item["link"])
-        link = f"https://studio.youtube.com/video/{vid}/edit"
-        print("Uploaded:", link)
-        notify(f"New job video uploaded ({PRIVACY}). Review: {link}")
+        send_telegram(d, d.get("apply_link") or item["link"])
+        print("Sent to Telegram:", item["title"])
         return
     print("No usable opening found today.")
 

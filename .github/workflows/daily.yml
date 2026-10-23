@@ -20,21 +20,15 @@ jobs:
       - name: Install ffmpeg and fonts
         run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-noto-core
       - run: pip install -r requirements.txt
-      - name: Make and upload video
+      - name: Make video and send to Telegram
         run: python pipeline.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Change these if you want:
           VIDEO_LANGUAGE: "English"            # or "Tamil"
           VOICE: "en-IN-NeerjaNeural"          # Tamil: ta-IN-PallaviNeural
-          PRIVACY: "private"                   # change to "public" only after you trust it
           FONT_FILE: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-          # Tamil text on screen: /usr/share/fonts/truetype/noto/NotoSansTamil-Bold.ttf
       - name: Remember processed links
         run: |
           git config user.name "job-video-bot"
