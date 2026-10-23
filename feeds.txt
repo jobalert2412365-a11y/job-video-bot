@@ -1,0 +1,2 @@
+# One RSS feed URL per line. Use official sources, or a Google Alerts RSS feed.
+# https://example.com/jobs/rss

@@ -1,0 +1,43 @@
+name: Daily job video
+
+on:
+  schedule:
+    - cron: "30 2 * * *"      # 08:00 IST (02:30 UTC)
+  workflow_dispatch:           # lets you run it manually to test
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg and fonts
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-noto-core
+      - run: pip install -r requirements.txt
+      - name: Make and upload video
+        run: python pipeline.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Change these if you want:
+          VIDEO_LANGUAGE: "English"            # or "Tamil"
+          VOICE: "en-IN-NeerjaNeural"          # Tamil: ta-IN-PallaviNeural
+          PRIVACY: "private"                   # change to "public" only after you trust it
+          FONT_FILE: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          # Tamil text on screen: /usr/share/fonts/truetype/noto/NotoSansTamil-Bold.ttf
+      - name: Remember processed links
+        run: |
+          git config user.name "job-video-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add seen.json
+          git diff --cached --quiet || (git commit -m "update seen list" && git push)
